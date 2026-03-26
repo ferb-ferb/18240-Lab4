@@ -1,10 +1,10 @@
 `default_nettype none
 
 module Grader(input logic [11:0] Guess, master,
-  input logic clk, /*cntRound,*/
+  input logic clk, cntRound,
   input logic ldGK, checkingZn, cntShift, maskLoad, clrGK, clrmask, clrShift, 
-  output logic [2:0] Znarly, Zood, output logic done, output logic [1:0] shiftCount,
-  output logic GameWon, /*output logic [3:0] RoundNumber*/);
+  output logic [3:0] Znarly, Zood, output logic done, output logic [1:0] shiftCount,
+  output logic GameWon, output logic [3:0] RoundNumber);
   /* Intermediate Logic Declarations */
   logic [11:0] GuessReg, shiftedGuess;
   logic [11:0] Key;
@@ -26,8 +26,8 @@ module Grader(input logic [11:0] Guess, master,
   Counter #(.WIDTH(2)) shiftCounter (.D(2'b0), .en(cntShift), .clear(clrShift), 
     .load(1'b0), .clock(clk), .up(1'b1), .Q(shiftCount));
   /* Round Counter */
-  // Counter #(.WIDTH(4)) RoundCounter (.D(4'd0), .en(cntRound), .clear(clrGK), 
-  //   .load(1'd0), .clock(clk), .up(1'b1), .Q(RoundNumber));
+  Counter #(.WIDTH(4)) RoundCounter (.D(4'd0), .en(cntRound), .clear(clrRN), 
+    .load(1'd0), .clock(clk), .up(1'b1), .Q(RoundNumber));
   /* Znarly and Zood Registers */
   Register #(.WIDTH(3)) ZnReg (.D(sumZn), .en(maskLoad), .clear(clrGK), .clock(clk),
     .Q(ZnCount));
@@ -103,8 +103,8 @@ module Grader(input logic [11:0] Guess, master,
       end
     endcase 
   end
-  assign Znarly = ZnCount;
-  assign Zood = ZoCount;
+  assign Znarly = {1'b0,ZnCount};
+  assign Zood = {1'b0, ZoCount};
   always_comb begin 
     if(ZnCount == 4)
       GameWon = 1'b1;
@@ -129,7 +129,7 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
       cntShift = 1'b0;
       clrShift = 1'b0;
       maskLoad = 1'b0;
-      // cntRound = 1'b0;
+      cntRound = 1'b0;
     case (curr_state)
       PRE: begin 
         if((startGame & MasterPatternLoaded) && (numGames != 4'd0))
@@ -171,6 +171,7 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
        end
        else if(GradeIt & done) begin 
          maskLoad = 1'b1;
+         cntRound = 1'b1;
          next_state = DONE;
        end
        else begin 
@@ -195,7 +196,7 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
   end
   always_ff @ (posedge clk, posedge reset) begin 
     if(reset)
-      curr_state <= WAIT;
+      curr_state <= PRE;
     else 
       curr_state <= next_state;
   end 
