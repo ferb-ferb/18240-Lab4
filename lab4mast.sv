@@ -1,9 +1,10 @@
 `default_nettype none
 
 module Grader(input logic [11:0] Guess, master,
-  input logic clk,
+  input logic clk, /*cntRound,*/
   input logic ldGK, checkingZn, cntShift, maskLoad, clrGK, clrmask, clrShift, 
-  output logic [2:0] Znarly, Zood, output logic done, output logic [1:0] shiftCount);
+  output logic [2:0] Znarly, Zood, output logic done, output logic [1:0] shiftCount,
+  output logic GameWon, /*output logic [3:0] RoundNumber*/);
   /* Intermediate Logic Declarations */
   logic [11:0] GuessReg, shiftedGuess;
   logic [11:0] Key;
@@ -24,6 +25,9 @@ module Grader(input logic [11:0] Guess, master,
   /* Shift Counter */
   Counter #(.WIDTH(2)) shiftCounter (.D(2'b0), .en(cntShift), .clear(clrShift), 
     .load(1'b0), .clock(clk), .up(1'b1), .Q(shiftCount));
+  /* Round Counter */
+  // Counter #(.WIDTH(4)) RoundCounter (.D(4'd0), .en(cntRound), .clear(clrGK), 
+  //   .load(1'd0), .clock(clk), .up(1'b1), .Q(RoundNumber));
   /* Znarly and Zood Registers */
   Register #(.WIDTH(3)) ZnReg (.D(sumZn), .en(maskLoad), .clear(clrGK), .clock(clk),
     .Q(ZnCount));
@@ -101,13 +105,21 @@ module Grader(input logic [11:0] Guess, master,
   end
   assign Znarly = ZnCount;
   assign Zood = ZoCount;
+  always_comb begin 
+    if(ZnCount == 4)
+      GameWon = 1'b1;
+    else
+      GameWon = 1'b0;
+  end
 
 endmodule: Grader
 
-module GraderFSM(input logic GradeIt, done, clk, reset, 
+module GraderFSM(input logic GradeIt, done, clk, reset, startGame, 
+  MasterPatternLoaded, 
+  input logic [3:0] numGames, 
   input logic [1:0] shiftCount,
-  output logic ldGK, clrGK, checkingZn, clrmask, cntShift, clrShift, maskLoad);
-  enum logic [1:0] {WAIT = 2'd0, ZN = 2'd1, ZO = 2'd2, DONE = 2'd3} curr_state, 
+  output logic ldGK, clrGK, checkingZn, clrmask, cntShift, clrShift, maskLoad, cntRound);
+  enum logic [2:0] {PRE = 2'd0, WAIT = 2'd1, ZN = 2'd2, ZO = 2'd3, DONE = 2'd4} curr_state, 
     next_state;
   always_comb begin 
       ldGK = 1'b0;
@@ -117,7 +129,13 @@ module GraderFSM(input logic GradeIt, done, clk, reset,
       cntShift = 1'b0;
       clrShift = 1'b0;
       maskLoad = 1'b0;
+      // cntRound = 1'b0;
     case (curr_state)
+      PRE: begin 
+        if((startGame & MasterPatternLoaded) && (numGames != 4'd0))
+          next_state = WAIT;
+        else 
+          next_state = curr_state; 
       WAIT: begin 
          clrShift = 1'b1;
          clrmask = 1'b1;
@@ -537,7 +555,7 @@ module payGameFSM(
     output logic en_CreditReg, 
     output logic en_GameCounter, up_GameCounter,
     output logic subtract_4_from_credit,
-    output logic add_coin_en, // <--- NEW SIGNAL
+    output logic add_coin_en, 
     output logic gameActive 
 );
 
@@ -556,7 +574,7 @@ module payGameFSM(
         en_GameCounter         = 1'b0;
         up_GameCounter         = 1'b0;
         subtract_4_from_credit = 1'b0;
-        add_coin_en            = 1'b0; // Default to 0
+        add_coin_en            = 1'b0; 
         gameActive             = 1'b0;
 
         case (curr_state)
