@@ -1,8 +1,9 @@
 `default_nettype none
 
 module Grader(input logic [11:0] Guess, master,
-  input logic clk, cntRound,
-  input logic ldGK, checkingZn, cntShift, maskLoad, clrGK, clrmask, clrShift, 
+  input logic clk, cntRound, clrRN,
+  input logic ldGK, checkingZn, cntShift, maskLoad, clrGK, clrmask, 
+  input logic clrShift, 
   output logic [3:0] Znarly, Zood, output logic done, output logic [1:0] shiftCount,
   output logic GameWon, output logic [3:0] RoundNumber);
   /* Intermediate Logic Declarations */
@@ -118,8 +119,8 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
   MasterPatternLoaded, 
   input logic [3:0] numGames, 
   input logic [1:0] shiftCount,
-  output logic ldGK, clrGK, checkingZn, clrmask, cntShift, clrShift, maskLoad, cntRound);
-  enum logic [2:0] {PRE = 2'd0, WAIT = 2'd1, ZN = 2'd2, ZO = 2'd3, DONE = 2'd4} curr_state, 
+  output logic ldGK, clrGK, checkingZn, clrmask, cntShift, clrShift, maskLoad, cntRound, clrRN);
+  enum logic [2:0] {PRE = 3'd0, WAIT = 3'd1, ZN = 3'd2, ZO = 3'd3, DONE = 3'd4} curr_state, 
     next_state;
   always_comb begin 
       ldGK = 1'b0;
@@ -136,6 +137,7 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
           next_state = WAIT;
         else 
           next_state = curr_state; 
+        end
       WAIT: begin 
          clrShift = 1'b1;
          clrmask = 1'b1;
@@ -191,7 +193,7 @@ module GraderFSM(input logic GradeIt, done, clk, reset, startGame,
         clrGK = 1'b1;
         next_state = WAIT;
       end
-      end
+    end
     endcase
   end
   always_ff @ (posedge clk, posedge reset) begin 
@@ -210,17 +212,29 @@ module GraderSystemTest;
   logic done;
   logic [1:0] shiftCount;
   logic ldGK, clrGK, checkingZn, clrmask, cntShift, clrShift, maskLoad;
-  logic [2:0] Znarly, Zood; 
+  logic [3:0] Znarly, Zood; 
+  logic startGame; 
+  logic MasterPatternLoaded;
+  logic GameWon;
+  logic [3:0] numGames;
+  logic [3:0] RoundNumber;
+  logic cntRound, clrRN;
   GraderFSM DUTFSM (.*);
   Grader DUTDP ( .*);
   always #5 clk = ~clk;
   initial begin 
+    startGame = 1'b1;
+    numGames = 4'd5;
+    MasterPatternLoaded = 1'b1;
     clk = 0; 
     reset = 1;
     GradeIt = 0;
     #10 reset = 0; 
     $monitor($time ,, "Znarlys: %b , Zoods: %b, done: %b", Znarly, Zood, done);
     @(posedge clk);
+    @(posedge clk);
+    @(posedge clk);
+    startGame = 1'd0;
     @(posedge clk);
     GradeIt = 1'b1;
     @(posedge clk);
@@ -248,7 +262,8 @@ endmodule : GraderSystemTest
 module masterLoader (input logic [1:0] ShapeLocation, 
   input logic [2:0] LoadShape, input logic clrKey, ldKey, clrLdMask, 
   ld3,ld2,ld1,ld0, clk,
-  output logic MasterPatternLoaded);
+  output logic MasterPatternLoaded,
+  output logic [11:0] Master);
   logic [3:0] shiftAmount;
   logic __ldKey;
   logic [11:0] shiftedShape;
@@ -309,6 +324,7 @@ module masterLoader (input logic [1:0] ShapeLocation,
   Register #(.WIDTH(1)) _loaded0 (.D(1'b1), .en(ld0), 
     .clear(clrLdMask), .clock(clk), .Q(loaded0));
   assign MasterPatternLoaded = loaded3 & loaded2 & loaded1 & loaded0;
+  assign Master = Key;
 endmodule : masterLoader
 
 module masterLoaderFSM(
